@@ -79,7 +79,7 @@ for benchmark in os.listdir(BENCHMARKS_FOLDER):
     
     command = (CF_BINARY
         + " " + CF_COMMAND
-        + " " + "-Aajava=" + BENCHMARKS_FOLDER + "/" + benchmark + "/" + "/wpi-out"
+        + " " + "-Aajava=" + BENCHMARKS_FOLDER + "/" + benchmark + "/wpi-out"
         + " " + "-J-Xmx32G"
         + " " + "-Xmaxerrs 10000"
         + " " + "-d"
