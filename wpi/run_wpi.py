@@ -98,4 +98,3 @@ for benchmark in os.listdir(BENCHMARKS_FOLDER):
     #remove the classes folder
     shutil.rmtree(COMPILED_CLASSES_FOLDER)
     print("-------------------------------------------------- \n")
-    i += 1
