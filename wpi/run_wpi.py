@@ -99,4 +99,3 @@ for benchmark in os.listdir(BENCHMARKS_FOLDER):
     shutil.rmtree(COMPILED_CLASSES_FOLDER)
     print("-------------------------------------------------- \n")
     i += 1
-    exit()
