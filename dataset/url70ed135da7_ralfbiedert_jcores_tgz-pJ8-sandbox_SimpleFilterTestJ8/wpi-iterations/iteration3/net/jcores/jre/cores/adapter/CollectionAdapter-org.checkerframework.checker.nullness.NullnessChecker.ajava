@@ -1,0 +1,605 @@
+/*
+ * ArrayAdapter.java
+ * 
+ * Copyright (c) 2011, Ralf Biedert All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without modification, are
+ * permitted provided that the following conditions are met:
+ * 
+ * Redistributions of source code must retain the above copyright notice, this list of
+ * conditions and the following disclaimer. Redistributions in binary form must reproduce the
+ * above copyright notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * 
+ * Neither the name of the author nor the names of its contributors may be used to endorse or
+ * promote products derived from this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+ * TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * 
+ */
+package net.jcores.jre.cores.adapter;
+
+import java.lang.reflect.Array;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.locks.ReentrantLock;
+
+/**
+ * Wraps arbitrary collections with on-demand element access and caching.
+ *
+ * @author Ralf Biedert
+ * @since 1.0
+ * @param <I> The type of the incoming collection
+ * @param <O> The type of the adapter.
+ */
+@org.checkerframework.framework.qual.AnnotatedFor("org.checkerframework.checker.nullness.NullnessChecker")
+public class CollectionAdapter<I, O> extends AbstractAdapter<O> implements List<O> {
+
+    /**
+     */
+    private static final  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull long serialVersionUID = 7010286694628298017L;
+
+    /**
+     * Our primary collection iterator
+     */
+    @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.Nullable Iterator<I> iterator;
+
+    /**
+     * Our cache array
+     */
+    @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.MonotonicNonNull AtomicReferenceArray<O> array;
+
+    /**
+     * Specifies up to which index we have elements in our array cache
+     */
+    @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.MonotonicNonNull AtomicInteger inCache;
+
+    /**
+     * Locks access to the collection's iterator
+     */
+    @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.MonotonicNonNull ReentrantLock collectionLock;
+
+    /**
+     * The inclusive start index which we handle
+     */
+    final  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int start;
+
+    /**
+     * The inclusive end index we handle
+     */
+    final  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int end;
+
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.array" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.collectionLock" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.inCache" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.iterator" })
+    @org.checkerframework.dataflow.qual.Impure
+    public CollectionAdapter(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Collection<I> collection) {
+        this.inCache = new AtomicInteger(-1);
+        this.collectionLock = new ReentrantLock();
+        this.iterator = collection.iterator();
+        this.array = new AtomicReferenceArray<O>(collection.size());
+        this.start = 0;
+        this.end = collection.size() - 1;
+    }
+
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    private CollectionAdapter( @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int start,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int end) {
+        this.start = start;
+        this.end = end;
+    }
+
+    /**
+     * Standard converter just converts
+     *
+     * @param i
+     * @return
+     */
+    @org.checkerframework.checker.nullness.qual.RequiresNonNull({ "this.array" })
+    @org.checkerframework.checker.nullness.qual.RequiresNonNull({ "this.collectionLock" })
+    @org.checkerframework.checker.nullness.qual.RequiresNonNull({ "this.inCache" })
+    @org.checkerframework.checker.nullness.qual.RequiresNonNull({ "this.iterator" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.array" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.collectionLock" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.inCache" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.iterator" })
+    @org.checkerframework.dataflow.qual.Impure
+    protected O converter(I i) {
+        return (O) i;
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see net.jcores.shared.cores.adapter.AbstractAdapter#size()
+     */
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int size(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this) {
+        return (this.end - this.start) + 1;
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see net.jcores.shared.cores.adapter.AbstractAdapter#get(int)
+     */
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.array" })
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.inCache" })
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public O get(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int i) {
+        final int ii = i + this.start;
+        cacheUntil(ii);
+        return _get(ii);
+    }
+
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.array" })
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    private final O _get( @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int i) {
+        return this.array.get(i);
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see net.jcores.shared.cores.adapter.AbstractAdapter#iterator()
+     */
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull ListIterator<O> iterator(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this) {
+        return new ListIterator<O>() {
+
+            volatile int i = 0;
+
+            public boolean hasNext() {
+                return CollectionAdapter.this.start + this.i <= CollectionAdapter.this.end;
+            }
+
+            public O next() {
+                cacheUntil(CollectionAdapter.this.start + this.i);
+                return get(this.i++);
+            }
+
+            public boolean hasPrevious() {
+                return this.i > CollectionAdapter.this.start;
+            }
+
+            public O previous() {
+                this.i--;
+                return get(CollectionAdapter.this.start + this.i);
+            }
+
+            public int nextIndex() {
+                return CollectionAdapter.this.start + this.i;
+            }
+
+            public int previousIndex() {
+                return CollectionAdapter.this.start + this.i - 1;
+            }
+
+            public void remove() {
+            }
+
+            public void set(O e) {
+            }
+
+            public void add(O e) {
+            }
+        };
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see net.jcores.shared.cores.adapter.AbstractAdapter#array(java.lang.Class)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public <N> N @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull [] array(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.Nullable Class<N> in) {
+        cacheAll();
+        final N[] rval = (N[]) Array.newInstance(in, size());
+        for (int i = this.start; i < rval.length; i++) {
+            rval[i] = (N) _get(i);
+        }
+        return rval;
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see net.jcores.shared.cores.adapter.AbstractAdapter#unsafelist()
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull List<O> unsafelist(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this) {
+        return this;
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see net.jcores.shared.cores.adapter.AbstractAdapter#slice(int, int)
+     */
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull List<O> slice(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int a,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int b) {
+        final CollectionAdapter<I, O> adapter = new CollectionAdapter<I, O>(this.start + a, this.start + a + (b - a) - 1);
+        adapter.array = this.array;
+        adapter.collectionLock = this.collectionLock;
+        adapter.inCache = this.inCache;
+        adapter.iterator = this.iterator;
+        return adapter;
+    }
+
+    /**
+     * Cache all our elemnts
+     */
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.inCache" })
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    protected void cacheAll() {
+        cacheUntil(this.end);
+    }
+
+    /**
+     * Cache the collection until the given element
+     *
+     * @param request
+     */
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.inCache" })
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    protected void cacheUntil( @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int request) {
+        // When the cached value already exceeds the limit we dont have to do anything
+        if (this.inCache.intValue() >= request)
+            return;
+        this.collectionLock.lock();
+        try {
+            //System.out.println(Thread.currentThread() + ": " + this.inCache + " -> " + request);
+            // Iterator might have been gone due to another thread that just exited the lock while we entered
+            if (this.iterator == null)
+                return;
+            while (this.iterator.hasNext()) {
+                int i = this.inCache.get();
+                this.array.set(i + 1, converter(this.iterator.next()));
+                this.inCache.set(i + 1);
+                if (i > request)
+                    break;
+            }
+            // Eventually dump the iterator to free up space
+            if (!this.iterator.hasNext()) {
+                this.iterator = null;
+            }
+        } finally {
+            this.collectionLock.unlock();
+        }
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see java.util.List#isEmpty()
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean isEmpty(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this) {
+        return this.end - this.start < 0;
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see java.util.List#contains(java.lang.Object)
+     */
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.RequiresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean contains(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.Nullable Object o) {
+        final ListIterator<O> i = iterator();
+        while (i.hasNext()) {
+            O next = i.next();
+            if (next == null)
+                continue;
+            if (next.equals(o))
+                return true;
+        }
+        return false;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#toArray()
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Object @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull [] toArray(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this) {
+        cacheAll();
+        final Object[] rval = (Object[]) Array.newInstance(Object.class, size());
+        for (int i = this.start; i < rval.length; i++) {
+            rval[i] = _get(i);
+        }
+        return rval;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#toArray(T[])
+     */
+    @org.checkerframework.checker.nullness.qual.EnsuresNonNull({ "this.array" })
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public <T> T @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull [] toArray(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.nullness.qual.PolyNull T @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull [] a) {
+        cacheAll();
+        // Our return value array
+        T[] rval = null;
+        // Check if the passed array fits the data
+        if (a.length >= this.array.length()) {
+            rval = a;
+        } else {
+            rval = (T[]) Array.newInstance(a.getClass().getComponentType(), size());
+        }
+        // Fill the array
+        for (int i = this.start; i < rval.length; i++) {
+            rval[i] = (T) _get(i);
+        }
+        return rval;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#add(java.lang.Object)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean add(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, O e) {
+        return false;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#remove(java.lang.Object)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean remove(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Object o) {
+        return false;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#containsAll(java.util.Collection)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean containsAll(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Collection<?> c) {
+        for (Object o : c) {
+            if (!contains(o))
+                return false;
+        }
+        return true;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#addAll(java.util.Collection)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean addAll(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Collection<? extends O> c) {
+        return false;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#addAll(int, java.util.Collection)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean addAll(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int index, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Collection<? extends O> c) {
+        return false;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#removeAll(java.util.Collection)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean removeAll(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Collection<?> c) {
+        return false;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#retainAll(java.util.Collection)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean retainAll(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Collection<?> c) {
+        return false;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#clear()
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.SideEffectFree
+    public void clear(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this) {
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#set(int, java.lang.Object)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public O set(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int index, O element) {
+        return null;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#add(int, java.lang.Object)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.SideEffectFree
+    public void add(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int index, O element) {
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#remove(int)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public O remove(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int index) {
+        return null;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#indexOf(java.lang.Object)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int indexOf(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Object o) {
+        final ListIterator<O> i = iterator();
+        while (i.hasNext()) {
+            int index = i.nextIndex();
+            O next = i.next();
+            if (next == null)
+                continue;
+            if (next.equals(o))
+                return index;
+        }
+        return -1;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#lastIndexOf(java.lang.Object)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int lastIndexOf(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this, @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Object o) {
+        cacheAll();
+        for (int i = this.end; i >= this.start; i--) {
+            O next = get(i);
+            if (next == null)
+                continue;
+            if (next.equals(o))
+                return i;
+        }
+        return -1;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#listIterator()
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Pure
+    public @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull ListIterator<O> listIterator(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this) {
+        return iterator();
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#listIterator(int)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull ListIterator<O> listIterator(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int index) {
+        ListIterator<O> iterator2 = iterator();
+        for (int i = 0; i < index; i++) {
+            iterator2.next();
+        }
+        return iterator2;
+    }
+
+    /* (non-Javadoc)
+     * @see java.util.List#subList(int, int)
+     */
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.array" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.collectionLock" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.framework.qual.EnsuresQualifier(expression = { "this.inCache" }, qualifier = org.checkerframework.checker.nullness.qual.Nullable.class)
+    @org.checkerframework.dataflow.qual.Impure
+    public @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull List<O> subList(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull CollectionAdapter<I, O> this,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int fromIndex,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int toIndex) {
+        return slice(fromIndex, toIndex);
+    }
+}

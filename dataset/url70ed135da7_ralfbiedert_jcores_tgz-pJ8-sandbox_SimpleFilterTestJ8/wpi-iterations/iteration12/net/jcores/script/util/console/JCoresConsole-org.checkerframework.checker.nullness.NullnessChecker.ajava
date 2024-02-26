@@ -1,0 +1,127 @@
+package net.jcores.script.util.console;
+
+import static net.jcores.jre.CoreKeeper.$;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import javax.swing.JFrame;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
+import javax.swing.border.EmptyBorder;
+import net.jcores.jre.interfaces.functions.F0;
+
+/**
+ * We use this console to output what has been printed on the actual console ...
+ *
+ * @author Ralf Biedert
+ */
+@org.checkerframework.framework.qual.AnnotatedFor("org.checkerframework.checker.nullness.NullnessChecker")
+public class JCoresConsole extends JFrame {
+
+    /**
+     */
+    private static final  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull long serialVersionUID = -6393982993147415420L;
+
+    /**
+     * Logging area
+     */
+    protected @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull JTextArea textArea;
+
+    /**
+     * Scroll pane
+     */
+    protected @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull JScrollPane scrollPane;
+
+    /**
+     * The title / banner for our window
+     */
+    protected @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull String banner;
+
+    /**
+     * Constructs a console.
+     *
+     * @param title
+     */
+    @org.checkerframework.dataflow.qual.Impure
+    public JCoresConsole(@org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull String title) {
+        this.banner = title;
+        setTitle(title);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setSize(600, 400);
+        this.textArea = new JTextArea();
+        this.textArea.setBackground(Color.BLACK);
+        this.textArea.setForeground(Color.LIGHT_GRAY);
+        this.textArea.setEditable(false);
+        this.textArea.setBorder(new EmptyBorder(0, 0, 0, 0));
+        this.scrollPane = new JScrollPane(this.textArea);
+        this.scrollPane.setBorder(new EmptyBorder(0, 0, 0, 0));
+        getContentPane().setLayout(new BorderLayout());
+        getContentPane().add(this.scrollPane, BorderLayout.CENTER);
+        // Redirect the std. streams.
+        redirectSystemStreams();
+        setVisible(true);
+    }
+
+    @org.checkerframework.dataflow.qual.Impure
+    public void addTerminationHook(final @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull Thread thread) {
+        $.sys.manyTimes(new F0() {
+
+             @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull boolean warned = false;
+
+            @org.checkerframework.dataflow.qual.Impure
+            public void f() {
+                if (!thread.isAlive() && !this.warned) {
+                    System.out.println("[Terminated]");
+                    this.warned = true;
+                }
+            }
+        }, 500);
+    }
+
+    /**
+     * Shamelessly stolen from
+     * http://unserializableone.blogspot.com/2009/01/redirecting
+     * -systemout-and-systemerr-to.html
+     */
+    @org.checkerframework.dataflow.qual.Impure
+    void updateTextArea(final @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull String text) {
+        SwingUtilities.invokeLater(new Runnable() {
+
+            @org.checkerframework.dataflow.qual.Impure
+            public void run() {
+                JCoresConsole.this.textArea.append(text);
+            }
+        });
+    }
+
+    /**
+     * Shamelessly stolen from
+     * http://unserializableone.blogspot.com/2009/01/redirecting
+     * -systemout-and-systemerr-to.html
+     */
+    @org.checkerframework.dataflow.qual.Impure
+    private void redirectSystemStreams() {
+        OutputStream out = new OutputStream() {
+
+            @org.checkerframework.dataflow.qual.Impure
+            public void write( @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int b) throws IOException {
+                updateTextArea(String.valueOf((char) b));
+            }
+
+            @org.checkerframework.dataflow.qual.Impure
+            public void write( @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull byte @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull [] b,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int off,  @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull int len) throws IOException {
+                updateTextArea(new String(b, off, len));
+            }
+
+            @org.checkerframework.dataflow.qual.Impure
+            public void write( @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull byte @org.checkerframework.checker.initialization.qual.Initialized @org.checkerframework.checker.nullness.qual.NonNull [] b) throws IOException {
+                write(b, 0, b.length);
+            }
+        };
+        System.setOut(new PrintStream(out, true));
+        System.setErr(new PrintStream(out, true));
+    }
+}
