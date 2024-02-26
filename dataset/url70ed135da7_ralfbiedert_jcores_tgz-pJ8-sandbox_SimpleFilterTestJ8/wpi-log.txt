@@ -1,4 +1,0 @@
-Current path is: /Users/nima/Desktop/wpi-njr-debug/wpi
-Parent path is: /Users/nima/Desktop/wpi-njr-debug
-Grandparent path is: /Users/nima/Desktop
-CF_BINARY: ../scripts/tools/checker-framework-3.34.0/checker/bin/javac
