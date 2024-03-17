@@ -10,7 +10,7 @@
 PROJECT_PATH=$1
 
 # Global variables
-CF_BINARY="../scripts/tools/checker-framework-3.34.0/checker/bin/javac"
+CF_BINARY="/home/nima/Desktop/checker-framework/checker/bin/javac"
 COMPILED_CLASSES_FOLDER="$PROJECT_PATH/classes"
 lib_folder="$PROJECT_PATH/lib"
 SRC_FILES="$PROJECT_PATH/cf_srcs.txt"

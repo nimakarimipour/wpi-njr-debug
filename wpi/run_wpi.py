@@ -13,7 +13,7 @@ BENCHMARKS_FOLDER = "../dataset/"
 RESULTS_FOLDER = "checkerframework_3.34.0_results_WPI"
 COMPILED_CLASSES_FOLDER = "cf_classes"
 SRC_FILES = "cf_srcs.txt"
-CF_BINARY = "../scripts/tools/checker-framework-3.34.0/checker/bin/javac"
+CF_BINARY = "/home/nima/Desktop/checker-framework/checker/bin/javac"
 CF_COMMAND = "-processor org.checkerframework.checker.nullness.NullnessChecker -Adetailedmsgtext -AassumePure"
 SKIP_COMPLETED = False #skips if the output file is already there.
 WPI_TIMEOUT = 6 * 60 * 60 # 6 * 60 minutes
@@ -62,6 +62,7 @@ for benchmark in os.listdir(BENCHMARKS_FOLDER):
         + "/" + benchmark + "-before-wpi.txt"
     )
     os.system(command)
+
 
     #execute infer on the source files
     time_start = time.time()
